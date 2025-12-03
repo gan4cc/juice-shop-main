@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ![Juice Shop Logo](https://raw.githubusercontent.com/juice-shop/juice-shop/master/frontend/src/assets/public/images/JuiceShop_Logo_100px.png) OWASP Juice Shop
 
 [![OWASP Flagship](https://img.shields.io/badge/owasp-flagship%20project-48A646.svg)](https://owasp.org/projects/#sec-flagships)
@@ -240,3 +241,7 @@ OWASP Juice Shop and any contributions are Copyright © by Bjoern Kimminich & th
 2014-2025.
 
 ![Juice Shop Logo](https://raw.githubusercontent.com/bkimminich/juice-shop/master/frontend/src/assets/public/images/JuiceShop_Logo_400px.png)
+=======
+# juice-shop-main
+juice-shop
+>>>>>>> 5816f3ed3f7eeb0afae264e445f7a1207d1847ca
