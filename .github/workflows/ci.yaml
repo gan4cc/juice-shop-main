@@ -174,7 +174,7 @@ jobs:
             DATA_DIRECTORY="$DC_DIRECTORY/owasp-data"
             CACHE_DIRECTORY="$DC_DIRECTORY/owasp-data/cache"
             REPORTS_DIRECTORY="$DC_DIRECTORY/odc-reports"
-            mkdir -p "$DATA_DIRECTORY" "$CACHE_DIRECTORY" "$REPORTS_DIRECTORY"           
+            mkdir -p "$DATA_DIRECTORY" "$CACHE_DIRECTORY" "$REPORTS_DIRECTORY"
             docker pull owasp/dependency-check:$DC_VERSION
             docker run --rm \
                 -e user=$USER \
@@ -184,6 +184,7 @@ jobs:
                 --volume "$REPORTS_DIRECTORY":/report:z \
                 owasp/dependency-check:$DC_VERSION \
                 --scan /src \
+                --exclude /src/test/files/.* \ 
                 --format "HTML" \
                 --project "$DC_PROJECT" \
                 --out /report
@@ -196,7 +197,7 @@ jobs:
 
     docker_build_and_push:
         name: docker_build_and_push
-        runs-on: ubuntu-latest            
+        runs-on: ubuntu-latest 
         steps:
             - uses: actions/checkout@v5
               with:
