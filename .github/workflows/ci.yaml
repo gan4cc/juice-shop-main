@@ -58,7 +58,7 @@ permissions:
   contents: read
 
 env:
-  GITHUB_DOCKER_REGISTRY: 'ghcr.io/bumeranghc'
+  GITHUB_DOCKER_REGISTRY: 'ghcr.io/gan4cc'
 
 jobs:
     secrets_scan:
@@ -209,7 +209,7 @@ jobs:
               id: meta
               uses: docker/metadata-action@v5
               with:
-                images: bumeranghc/juicy-shop
+                images: gan4cc/juice-shop-main
 
             - name: Lowercase container registry
               id: github_container_registry
