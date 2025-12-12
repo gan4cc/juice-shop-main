@@ -3,6 +3,19 @@ name: DevSecOps Example Workflows
 on:
     workflow_dispatch:
         inputs:
+            node-version:
+                description: Node.js version
+                type: choice
+                default: '22'
+                required: true
+                options:
+                  - '18'
+                  - '20'
+                  - '22'
+            dc-version:
+                description: OWASP Dependency Check version
+                default: '12.1.9'
+                required: true
             gitleaks:
                 description: gitleaks
                 type: boolean
@@ -23,8 +36,18 @@ on:
                 type: boolean
                 default: false
                 required: true
+            owasp-depcheck:
+                description: owasp-depcheck
+                type: boolean
+                default: false
+                required: true                
             trivy:
                 description: trivy
+                type: boolean
+                default: false
+                required: true
+            zap:
+                description: zap
                 type: boolean
                 default: false
                 required: true
@@ -80,13 +103,14 @@ jobs:
         name: sbom
         if: inputs.sbom
         runs-on: ubuntu-latest
-        container: node:22
+        container: "node:${{ inputs.node-version }}"
         steps:
         - uses: actions/checkout@v5
           with:
             fetch-depth: 0
         
-        - run: |
+        - name: Generate SBOM and install dependencies
+          run: |
             npm --version
             node --version
             npm install --package-lock-only --ignore-scripts --no-audit
@@ -113,6 +137,54 @@ jobs:
           with:
             name: trivy-results.sarif
             path: trivy-results.sarif
+
+    owasp_depcheck:
+        name: owasp_depcheck
+        if: inputs.owasp-depcheck
+        runs-on: ubuntu-latest
+        steps:
+        - uses: actions/checkout@v5
+          with:
+            fetch-depth: 0
+        
+        - uses: actions/setup-node@v6
+          with:
+            node-version: "${{ inputs.node-version }}"
+     
+        - name: Install dependencies and build project
+          run: |
+            npm --version
+            node --version
+            npm install --package-lock-only --ignore-scripts --no-audit
+            npm ci
+
+        - name: Run OWASP Dependency Check
+          run: |
+            DC_DIRECTORY="$(pwd)"
+            DC_VERSION="${{ inputs.dc-version}}"
+            DC_PROJECT="dependency-check scan: $(pwd)"
+            DATA_DIRECTORY="$DC_DIRECTORY/owasp-data"
+            CACHE_DIRECTORY="$DC_DIRECTORY/owasp-data/cache"
+            REPORTS_DIRECTORY="$DC_DIRECTORY/odc-reports"
+            mkdir -p "$DATA_DIRECTORY" "$CACHE_DIRECTORY" "$REPORTS_DIRECTORY"           
+            docker pull owasp/dependency-check:$DC_VERSION
+            docker run --rm \
+                -e user=$USER \
+                -u $(id -u ${USER}):$(id -g ${USER}) \
+                --volume "$DC_DIRECTORY":/src:z \
+                --volume "$DATA_DIRECTORY":/usr/share/dependency-check/data:z \
+                --volume "$REPORTS_DIRECTORY":/report:z \
+                owasp/dependency-check:$DC_VERSION \
+                --scan /src \
+                --format "HTML" \
+                --project "$DC_PROJECT" \
+                --out /report
+        
+        - uses: actions/upload-artifact@v5
+          if: always()
+          with:
+            name: owasp-depcheck-report
+            path: odc-reports
 
     docker_build_and_push:
         name: docker_build_and_push
@@ -154,3 +226,45 @@ jobs:
                 cache-from: type=gha
                 cache-to: type=gha,mode=max
                 labels: ${{steps.meta.outputs.labels}}
+                build-args: NODE_VERSION=${{ inputs.node-version }}
+
+    dast:
+        name: zap
+        needs: docker_build_and_push
+        if: inputs.zap
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v5
+              with:
+                fetch-depth: 0
+
+            - name: Prepare variables
+              id: zap_variables
+              run: |
+                ZAP_REPORTS="./zap-reports"
+                mkdir -p $ZAP_REPORTS
+                echo "zap_scan_report=zap-report.html" >>${GITHUB_OUTPUT}
+                echo "zap_scan_results=$ZAP_REPORTS" >>${GITHUB_OUTPUT}
+                echo "image_tag=${GITHUB_DOCKER_REGISTRY,,}/juicy-shop:${{ github.run_number }}" >>${GITHUB_OUTPUT}
+
+            - name: Login to GitHUb
+              uses: docker/login-action@v3
+              with:
+                registry: ghcr.io
+                username: ${{ github.actor }}
+                password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Run DAST with OWASP ZAP
+              run: |
+                docker compose -p zap-juice-shop-${{ github.run_number }} -f docker-compose.dast.yml up zap
+                docker compose -p zap-juice-shop-${{ github.run_number }} down
+              env:
+                ZAP_SCAN_REPORT: ${{ steps.zap_variables.outputs.zap_scan_report }}
+                ZAP_SCAN_RESULTS: ${{ steps.zap_variables.outputs.zap_scan_results }}
+                IMAGE_TAG: ${{ steps.zap_variables.outputs.image_tag }}
+
+            - uses: actions/upload-artifact@v5
+              if: always()
+              with:
+                name: zap-dast-report
+                path: zap-reports
