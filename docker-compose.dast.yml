@@ -3,21 +3,15 @@ services:
     image: ${IMAGE_TAG}
     ports:
       - "3000:3000"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
 
   zap:
     image: ghcr.io/zaproxy/zaproxy:stable
     depends_on:
-      app:
-        condition: service_healthy
+      - app
     command: >
       zap-baseline.py
       -t http://app:3000
       -r zap-report.html
+      -d
     volumes:
       - ./zap-reports:/zap/wrk
