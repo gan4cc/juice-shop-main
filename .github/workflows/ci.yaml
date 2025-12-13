@@ -142,6 +142,11 @@ jobs:
         name: owasp_depcheck
         if: inputs.owasp-depcheck
         runs-on: ubuntu-latest
+        env: 
+          NVD_API_KEY: "${{ secrets.NVD_API_KEY }}"
+          OSSINDEX_USER: ${{ secrets.OSSINDEX_USER }}
+          OSSINDEX_TOKEN: ${{ secrets.OSSINDEX_TOKEN }}
+
         steps:
         - uses: actions/checkout@v5
           with:
@@ -169,6 +174,9 @@ jobs:
             mkdir -p "$DATA_DIRECTORY" "$CACHE_DIRECTORY" "$REPORTS_DIRECTORY"           
             docker pull owasp/dependency-check:$DC_VERSION
             docker run --rm \
+                -e NVD_API_KEY="$NVD_API_KEY" \
+                -e OSSINDEX_USER="$OSSINDEX_USER" \
+                -e OSSINDEX_TOKEN="$OSSINDEX_TOKEN" \
                 -e user=$USER \
                 -u $(id -u ${USER}):$(id -g ${USER}) \
                 --volume "$DC_DIRECTORY":/src:z \
@@ -178,7 +186,8 @@ jobs:
                 --scan /src \
                 --format "HTML" \
                 --project "$DC_PROJECT" \
-                --out /report
+                --out /report \
+                --nvdApiKey "$NVD_API_KEY"
         
         - uses: actions/upload-artifact@v5
           if: always()
