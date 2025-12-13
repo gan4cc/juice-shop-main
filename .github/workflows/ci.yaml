@@ -188,12 +188,13 @@ jobs:
                 --volume "$REPORTS_DIRECTORY":/report:z \
                 owasp/dependency-check:$DC_VERSION \
                 --scan /src \
-                --exclude "/src/test/.*" \ 
-                --format "HTML" \
+                --exclude "/src/test/.*" \
+                --format HTML \
                 --project "$DC_PROJECT" \
                 --out /report \
                 --failOnCVSS 11 \
                 --nvdApiKey "$NVD_API_KEY"
+
         
         - uses: actions/upload-artifact@v5
           if: always()
