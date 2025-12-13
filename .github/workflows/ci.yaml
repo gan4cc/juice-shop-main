@@ -49,7 +49,7 @@ permissions:
 
 env:
   GITHUB_DOCKER_REGISTRY: ghcr.io/gan4cc
-  IMAGE_NAME: juice-shop
+  IMAGE_NAME: juicy-shop
 
 # ---------------------------------------------------------
 # 🔐 Secrets scanning
@@ -144,7 +144,7 @@ jobs:
             --scan /src \
             --disableArchive \
             --format HTML \
-            --project "juice-shop" \
+            --project "juicy-shop" \
             --out /report \
             --nvdApiKey "$NVD_API_KEY"
 
