@@ -1,56 +1,46 @@
 name: DevSecOps Example Workflows
 
 on:
-    workflow_dispatch:
-        inputs:
-            node-version:
-                description: Node.js version
-                type: choice
-                default: '22'
-                required: true
-                options:
-                  - '18'
-                  - '20'
-                  - '22'
-            dc-version:
-                description: OWASP Dependency Check version
-                default: '12.1.9'
-                required: true
-            gitleaks:
-                description: gitleaks
-                type: boolean
-                default: false
-                required: true
-            trufflehog:
-                description: trufflehog
-                type: boolean
-                default: false
-                required: true
-            semgrep:
-                description: semgrep
-                type: boolean
-                default: false
-                required: true
-            sbom:
-                description: sbom
-                type: boolean
-                default: false
-                required: true
-            owasp-depcheck:
-                description: owasp-depcheck
-                type: boolean
-                default: false
-                required: true                
-            trivy:
-                description: trivy
-                type: boolean
-                default: false
-                required: true
-            zap:
-                description: zap
-                type: boolean
-                default: false
-                required: true
+  workflow_dispatch:
+    inputs:
+      node-version:
+        description: Node.js version
+        type: choice
+        default: '22'
+        required: true
+        options: ['18', '20', '22']
+      dc-version:
+        description: OWASP Dependency Check version
+        default: '12.1.9'
+        required: true
+      gitleaks:
+        type: boolean
+        default: false
+        required: true
+      trufflehog:
+        type: boolean
+        default: false
+        required: true
+      semgrep:
+        type: boolean
+        default: false
+        required: true
+      sbom:
+        type: boolean
+        default: false
+        required: true
+      owasp-depcheck:
+        type: boolean
+        default: false
+        required: true
+      trivy:
+        type: boolean
+        default: false
+        required: true
+      zap:
+        type: boolean
+        default: false
+        required: true
 
 permissions:
   actions: write
@@ -58,222 +48,153 @@ permissions:
   contents: read
 
 env:
-  GITHUB_DOCKER_REGISTRY: 'ghcr.io/gan4cc'
+  GITHUB_DOCKER_REGISTRY: ghcr.io/gan4cc
+  IMAGE_NAME: juice-shop
 
+# ---------------------------------------------------------
+# 🔐 Secrets scanning
+# ---------------------------------------------------------
 jobs:
-    secrets_scan:
-        name: secrets_scan
-        if: inputs.gitleaks || inputs.trufflehog
-        runs-on: ubuntu-latest
-        steps:
-        - uses: actions/checkout@v5
-          with:
-            fetch-depth: 0
+  secrets_scan:
+    if: inputs.gitleaks || inputs.trufflehog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
 
-        - uses: gitleaks/gitleaks-action@v2
-          if: inputs.gitleaks
-          env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: gitleaks/gitleaks-action@v2
+        if: inputs.gitleaks
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-        - uses: trufflesecurity/trufflehog@main
-          if: always() && inputs.trufflehog
-          with:
-            extra_args: --results=verified,unknown
+      - uses: trufflesecurity/trufflehog@main
+        if: inputs.trufflehog
+        with:
+          extra_args: --results=verified,unknown
 
-    sast:
-        name: semgrep
-        if: inputs.semgrep
-        runs-on: ubuntu-latest
-        container: semgrep/semgrep:latest
-        steps:
-        - uses: actions/checkout@v5
-          with:
-            fetch-depth: 0
-                    
-        - run: |
-            semgrep --version
-            semgrep scan --config=auto . --sarif . > semgrep-results.sarif
+# ---------------------------------------------------------
+# 🧪 SAST – Semgrep
+# ---------------------------------------------------------
+  sast:
+    if: inputs.semgrep
+    runs-on: ubuntu-latest
+    container: semgrep/semgrep:latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          semgrep scan --config=auto . --sarif > semgrep-results.sarif
+      - uses: actions/upload-artifact@v5
+        with:
+          name: semgrep-results
+          path: semgrep-results.sarif
 
-        - uses: actions/upload-artifact@v5
-          with:
-            name: semgrep-results.sarif
-            path: semgrep-results.sarif
+# ---------------------------------------------------------
+# 📦 SBOM + Trivy
+# ---------------------------------------------------------
+  sbom:
+    if: inputs.sbom
+    runs-on: ubuntu-latest
+    container: node:${{ inputs.node-version }}
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          npm install --package-lock-only --ignore-scripts --no-audit
+          npm install -g @cyclonedx/cyclonedx-npm
+          cyclonedx-npm --package-lock-only -o sbom.cdx.json
+      - uses: aquasecurity/trivy-action@0.33.1
+        if: inputs.trivy
+        with:
+          scan-type: fs
+          format: sarif
+          output: trivy.sarif
+          severity: CRITICAL
+      - uses: actions/upload-artifact@v5
+        with:
+          name: sbom
+          path: sbom.cdx.json
+      - uses: actions/upload-artifact@v5
+        with:
+          name: trivy
+          path: trivy.sarif
 
-    sbom:
-        name: sbom
-        if: inputs.sbom
-        runs-on: ubuntu-latest
-        container: "node:${{ inputs.node-version }}"
-        steps:
-        - uses: actions/checkout@v5
-          with:
-            fetch-depth: 0
-        
-        - name: Generate SBOM and install dependencies
-          run: |
-            npm --version
-            node --version
-            npm install --package-lock-only --ignore-scripts --no-audit
-            npm install -g @cyclonedx/cyclonedx-npm
-            cyclonedx-npm --package-lock-only -o sbom-packages.cdx.json
-            npm ci
+# ---------------------------------------------------------
+# 🔎 SCA – OWASP Dependency Check (FIXED)
+# ---------------------------------------------------------
+  owasp_depcheck:
+    if: inputs.owasp-depcheck
+    runs-on: ubuntu-latest
+    env:
+      NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+      OSSINDEX_USER: ${{ secrets.OSSINDEX_USER }}
+      OSSINDEX_TOKEN: ${{ secrets.OSSINDEX_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
 
-        - name: Run Trivy vulnerability scanner in repo mode
-          if: inputs.trivy
-          uses: aquasecurity/trivy-action@0.33.1
-          with:
-            scan-type: 'fs'
-            ignore-unfixed: true
-            format: 'sarif'
-            output: 'trivy-results.sarif'
-            severity: 'CRITICAL'
+      - run: |
+          mkdir -p odc-data odc-reports
+          docker pull owasp/dependency-check:${{ inputs.dc-version }}
+          docker run --rm \
+            -e NVD_API_KEY="$NVD_API_KEY" \
+            -e OSSINDEX_USER="$OSSINDEX_USER" \
+            -e OSSINDEX_TOKEN="$OSSINDEX_TOKEN" \
+            -v "$PWD":/src \
+            -v "$PWD/odc-data":/usr/share/dependency-check/data \
+            -v "$PWD/odc-reports":/report \
+            owasp/dependency-check:${{ inputs.dc-version }} \
+            --scan /src \
+            --disableArchive \
+            --format HTML \
+            --project "juice-shop" \
+            --out /report \
+            --nvdApiKey "$NVD_API_KEY"
 
-        - uses: actions/upload-artifact@v5
-          with:
-            name: sbom-packages.cdx.json
-            path: sbom-packages.cdx.json
+      - uses: actions/upload-artifact@v5
+        with:
+          name: dependency-check
+          path: odc-reports
 
-        - uses: actions/upload-artifact@v5
-          with:
-            name: trivy-results.sarif
-            path: trivy-results.sarif
+# ---------------------------------------------------------
+# 🐳 Build & Push Docker image (FIXED)
+# ---------------------------------------------------------
+  docker_build_and_push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
 
-    owasp_depcheck:
-        name: owasp_depcheck
-        if: inputs.owasp-depcheck
-        runs-on: ubuntu-latest
-        env: 
-          NVD_API_KEY: "${{ secrets.NVD_API_KEY }}"
-          OSSINDEX_USER: ${{ secrets.OSSINDEX_USER }}
-          OSSINDEX_TOKEN: ${{ secrets.OSSINDEX_TOKEN }}
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-        steps:
-        - uses: actions/checkout@v5
-          with:
-            fetch-depth: 0
-        
-        - uses: actions/setup-node@v6
-          with:
-            node-version: "${{ inputs.node-version }}"
-     
-        - name: Install dependencies and build project
-          run: |
-            npm --version
-            node --version
-            npm install --package-lock-only --ignore-scripts --no-audit
-            npm ci
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.GITHUB_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
+            ${{ env.GITHUB_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ghcr.io/gan4cc/juice-shop:${{ github.run_number }}
+            ghcr.io/gan4cc/juice-shop:latest
 
-        - name: Run OWASP Dependency Check
-          run: |
-            DC_DIRECTORY="$(pwd)"
-            DC_VERSION="${{ inputs.dc-version}}"
-            DC_PROJECT="dependency-check scan: $(pwd)"
-            DATA_DIRECTORY="$DC_DIRECTORY/owasp-data"
-            CACHE_DIRECTORY="$DC_DIRECTORY/owasp-data/cache"
-            REPORTS_DIRECTORY="$DC_DIRECTORY/odc-reports"
-            mkdir -p "$DATA_DIRECTORY" "$CACHE_DIRECTORY" "$REPORTS_DIRECTORY"           
-            docker pull owasp/dependency-check:$DC_VERSION
-            docker run --rm \
-                -e NVD_API_KEY="$NVD_API_KEY" \
-                -e OSSINDEX_USER="$OSSINDEX_USER" \
-                -e OSSINDEX_TOKEN="$OSSINDEX_TOKEN" \
-                -e user=$USER \
-                -u $(id -u ${USER}):$(id -g ${USER}) \
-                --volume "$DC_DIRECTORY":/src:z \
-                --volume "$DATA_DIRECTORY":/usr/share/dependency-check/data:z \
-                --volume "$REPORTS_DIRECTORY":/report:z \
-                owasp/dependency-check:$DC_VERSION \
-                --scan /src \
-                --format "HTML" \
-                --project "$DC_PROJECT" \
-                --out /report \
-                --nvdApiKey "$NVD_API_KEY"
-        
-        - uses: actions/upload-artifact@v5
-          if: always()
-          with:
-            name: owasp-depcheck-report
-            path: odc-reports
+# ---------------------------------------------------------
+# 🌐 DAST – OWASP ZAP (FIXED)
+# ---------------------------------------------------------
+  dast:
+    if: inputs.zap
+    needs: docker_build_and_push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
 
-    docker_build_and_push:
-        name: docker_build_and_push
-        runs-on: ubuntu-latest            
-        steps:
-            - uses: actions/checkout@v5
-              with:
-                fetch-depth: 0
+      - name: Run ZAP
+        env:
+          IMAGE_TAG: ${{ env.GITHUB_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
+        run: |
+          mkdir -p zap-reports
+          docker compose -f docker-compose.dast.yml up --abort-on-container-exit zap
 
-            - name: Login to GitHUb
-              uses: docker/login-action@v3
-              with:
-                registry: ghcr.io
-                username: ${{ github.actor }}
-                password: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: select docker driver
-              run: |
-                docker buildx create --use --driver=docker-container
-
-            - name: Docker meta
-              id: meta
-              uses: docker/metadata-action@v5
-              with:
-                images: gan4cc/juicy-shop-main
-
-            - name: Lowercase container registry
-              id: github_container_registry
-              run: |
-                echo "repository=${GITHUB_DOCKER_REGISTRY,,}" >>${GITHUB_OUTPUT}
-
-            - name: Build and push
-              uses: docker/build-push-action@v6
-              with:
-                context: ${{github.workspace}}
-                file: Dockerfile
-                push: true
-                tags: ${{steps.github_container_registry.outputs.repository}}/juicy-shop:${{ github.run_number }}
-                cache-from: type=gha
-                cache-to: type=gha,mode=max
-                labels: ${{steps.meta.outputs.labels}}
-                build-args: NODE_VERSION=${{ inputs.node-version }}
-
-    dast:
-        name: zap
-        needs: docker_build_and_push
-        if: inputs.zap
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v5
-              with:
-                fetch-depth: 0
-
-            - name: Prepare variables
-              id: zap_variables
-              run: |
-                ZAP_REPORTS="./zap-reports"
-                mkdir -p $ZAP_REPORTS
-                echo "zap_scan_report=zap-report.html" >>${GITHUB_OUTPUT}
-                echo "zap_scan_results=$ZAP_REPORTS" >>${GITHUB_OUTPUT}
-                echo "image_tag=${GITHUB_DOCKER_REGISTRY,,}/juicy-shop:${{ github.run_number }}" >>${GITHUB_OUTPUT}
-
-            - name: Login to GitHUb
-              uses: docker/login-action@v3
-              with:
-                registry: ghcr.io
-                username: ${{ github.actor }}
-                password: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Run DAST with OWASP ZAP
-              run: |
-                docker compose -p zap-juice-shop-${{ github.run_number }} -f docker-compose.dast.yml up zap
-                docker compose -p zap-juice-shop-${{ github.run_number }} down
-              env:
-                ZAP_SCAN_REPORT: ${{ steps.zap_variables.outputs.zap_scan_report }}
-                ZAP_SCAN_RESULTS: ${{ steps.zap_variables.outputs.zap_scan_results }}
-                IMAGE_TAG: ${{ steps.zap_variables.outputs.image_tag }}
-
-            - uses: actions/upload-artifact@v5
-              if: always()
-              with:
-                name: zap-dast-report
-                path: zap-reports
+      - uses: actions/upload-artifact@v5
+        with:
+          name: zap-report
+          path: zap-reports

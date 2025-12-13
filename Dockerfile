@@ -1,4 +1,4 @@
-ARG NODE_VERSION=22
+ARG NODE_VERSION=22.11.0-alpine
 FROM node:${NODE_VERSION} AS installer
 COPY . /juice-shop
 WORKDIR /juice-shop
