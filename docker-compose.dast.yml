@@ -1,11 +1,16 @@
 services:
   app:
     image: ${IMAGE_TAG}
-
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
   zap:
     image: ghcr.io/zaproxy/zaproxy:stable
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     command: >
       zap-baseline.py
       -t http://app:3000
