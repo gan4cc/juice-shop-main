@@ -191,7 +191,7 @@ jobs:
                 --volume "$REPORTS_DIRECTORY":/report:z \
                 owasp/dependency-check:$DC_VERSION \
                 --scan /src \
-                --exclude /src/test/** \
+                --exclude /src/test/files/** \
                 --format HTML \
                 --project "$DC_PROJECT" \
                 --out /report \
