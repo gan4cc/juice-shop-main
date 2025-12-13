@@ -1,0 +1,16 @@
+services:
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    depends_on:
+      - app
+    command: zap-baseline.py -t http://app:3000 -r ${ZAP_SCAN_REPORT:-zap-report.html}
+    volumes:
+      - ${ZAP_SCAN_RESULTS:-./zap-reports}:/zap/wrk
+
+  app:
+    image: "${IMAGE_TAG:-juice-shop}"
+    build: ./
+
+networks:
+  default:
+    name: zapnet_${RUN_ID:-network}

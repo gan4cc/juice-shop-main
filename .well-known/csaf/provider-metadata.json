@@ -1,0 +1,11 @@
+{
+  "title": "OWASP Juice Shop CSAF Provider Metadata",
+  "publisher": {
+    "name": "OWASP Juice Shop",
+    "namespace": "https://owasp.org/"
+  },
+  "note": "Auto-created placeholder to satisfy datacreator at startup",
+  "document_format": "CSAF",
+  "document_version": "2.0",
+  "timestamp": "2025-11-23T00:00:00Z"
+}
