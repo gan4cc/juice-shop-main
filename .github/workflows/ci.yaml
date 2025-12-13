@@ -192,6 +192,7 @@ jobs:
                 owasp/dependency-check:$DC_VERSION \
                 --scan /src \
                 --exclude /src/test/files/** \
+                --disableArchive \
                 --format HTML \
                 --project "$DC_PROJECT" \
                 --out /report \
