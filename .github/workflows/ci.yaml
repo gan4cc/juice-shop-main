@@ -58,10 +58,10 @@ permissions:
     contents: read
 
 env:
-    # ИСПРАВЛЕНИЕ: Упрощено. Содержит только адрес реестра и владельца (gan4cc), без имени репозитория.
+    
     GITHUB_DOCKER_REGISTRY: 'ghcr.io/gan4cc' 
-    # Новое общее имя образа для удобства
     IMAGE_NAME: 'juice-shop-main'
+    
 
 jobs:
     secrets_scan:
@@ -147,6 +147,10 @@ jobs:
         name: owasp_depcheck
         if: inputs.owasp-depcheck
         runs-on: ubuntu-latest
+        env:
+             NVD_API_KEY: "${{ secrets.NVD_API_KEY }}"
+
+
         steps:
         - uses: actions/checkout@v5
           with:
@@ -184,10 +188,12 @@ jobs:
                 --volume "$REPORTS_DIRECTORY":/report:z \
                 owasp/dependency-check:$DC_VERSION \
                 --scan /src \
-                --exclude /src/test/files/.* \ 
+                --exclude "/src/test/.*"\ 
                 --format "HTML" \
                 --project "$DC_PROJECT" \
                 --out /report
+                --failOnCVSS 11 \
+                --nvdApiKey "$NVD_API_KEY"
         
         - uses: actions/upload-artifact@v5
           if: always()
