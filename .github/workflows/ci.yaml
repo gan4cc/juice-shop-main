@@ -174,8 +174,7 @@ jobs:
           tags: |
             ${{ env.GITHUB_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
             ${{ env.GITHUB_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ghcr.io/gan4cc/juice-shop:${{ github.run_number }}
-            ghcr.io/gan4cc/juice-shop:latest
+
 
 # ---------------------------------------------------------
 # 🌐 DAST – OWASP ZAP (FIXED)
