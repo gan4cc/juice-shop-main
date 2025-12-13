@@ -148,8 +148,9 @@ jobs:
         if: inputs.owasp-depcheck
         runs-on: ubuntu-latest
         env:
-             NVD_API_KEY: "${{ secrets.NVD_API_KEY }}"
-
+            NVD_API_KEY: "${{ secrets.NVD_API_KEY }}"
+            OSSINDEX_USER: ${{ secrets.OSSINDEX_USER }}
+            OSSINDEX_TOKEN: ${{ secrets.OSSINDEX_TOKEN }}
 
         steps:
         - uses: actions/checkout@v5
@@ -181,6 +182,8 @@ jobs:
             docker pull owasp/dependency-check:$DC_VERSION
             docker run --rm \
                 -e NVD_API_KEY="$NVD_API_KEY" \
+                -e OSSINDEX_USER="$OSSINDEX_USER" \
+                -e OSSINDEX_TOKEN="$OSSINDEX_TOKEN" \
                 -e user=$USER \
                 -u $(id -u ${USER}):$(id -g ${USER}) \
                 --volume "$DC_DIRECTORY":/src:z \
@@ -188,7 +191,7 @@ jobs:
                 --volume "$REPORTS_DIRECTORY":/report:z \
                 owasp/dependency-check:$DC_VERSION \
                 --scan /src \
-                --exclude "/src/test/.*" \
+                --exclude /src/test/** \
                 --format HTML \
                 --project "$DC_PROJECT" \
                 --out /report \
