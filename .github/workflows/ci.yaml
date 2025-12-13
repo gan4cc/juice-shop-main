@@ -159,8 +159,7 @@ jobs:
         - uses: actions/setup-node@v6
           with:
             node-version: "${{ inputs.node-version }}"
-      
-        # ИСПРАВЛЕНИЕ: Упрощение установки зависимостей для устранения предупреждений
+     
         - name: Install dependencies and build project
           run: |
             npm --version
@@ -181,6 +180,7 @@ jobs:
             mkdir -p "$DATA_DIRECTORY" "$CACHE_DIRECTORY" "$REPORTS_DIRECTORY"
             docker pull owasp/dependency-check:$DC_VERSION
             docker run --rm \
+                -e NVD_API_KEY="$NVD_API_KEY" \
                 -e user=$USER \
                 -u $(id -u ${USER}):$(id -g ${USER}) \
                 --volume "$DC_DIRECTORY":/src:z \
@@ -188,10 +188,10 @@ jobs:
                 --volume "$REPORTS_DIRECTORY":/report:z \
                 owasp/dependency-check:$DC_VERSION \
                 --scan /src \
-                --exclude "/src/test/.*"\ 
+                --exclude "/src/test/.*" \ 
                 --format "HTML" \
                 --project "$DC_PROJECT" \
-                --out /report
+                --out /report \
                 --failOnCVSS 11 \
                 --nvdApiKey "$NVD_API_KEY"
         
