@@ -5,31 +5,25 @@ FROM node:22 AS builder
 
 WORKDIR /juice-shop
 
-# 1. Копируем манифесты
-COPY package*.json ./
-
-# 2. Устанавливаем зависимости (dev + prod)
-RUN npm install --unsafe-perm
-
-# 3. Копируем исходники
 COPY . .
 
-# 4. Сборка
-RUN npm run build
+# 2. Установка зависимостей
+# postinstall использует frontend/, поэтому он уже должен быть
+RUN npm install --unsafe-perm
 
-# 5. Удаляем dev deps
+# 3. Удаляем dev зависимости
 RUN npm prune --omit=dev
 
-# 6. Очистка
+# 4. Очистка мусора
 RUN rm -rf frontend/node_modules \
            frontend/.angular \
-           frontend/src/assets \
-           data/chatbot/botDefaultTrainingData.json || true \
-    && rm -f ftp/legal.md || true \
-    && rm -f i18n/*.json || true
+           frontend/src/assets || true \
+ && rm -f ftp/legal.md || true \
+ && rm -f data/chatbot/botDefaultTrainingData.json || true \
+ && rm -f i18n/*.json || true
 
-# 7. Права
-RUN mkdir logs \
+# 5. Права
+RUN mkdir -p logs \
  && chown -R 65532:0 logs ftp frontend/dist data i18n \
  && chmod -R g=u logs ftp frontend/dist data i18n
 
