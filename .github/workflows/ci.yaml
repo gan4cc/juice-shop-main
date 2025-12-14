@@ -132,6 +132,7 @@ jobs:
 
       - run: |
           mkdir -p odc-data odc-reports
+          chmod -R 777 odc-data odc-reports
           docker pull owasp/dependency-check:${{ inputs.dc-version }}
           docker run --rm \
             -e NVD_API_KEY="$NVD_API_KEY" \
