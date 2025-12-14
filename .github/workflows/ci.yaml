@@ -138,7 +138,6 @@ jobs:
             -e OSSINDEX_USER="$OSSINDEX_USER" \
             -e OSSINDEX_TOKEN="$OSSINDEX_TOKEN" \
             -v "$PWD":/src \
-            -v "$PWD/odc-data":/usr/share/dependency-check/data \
             -v "$PWD/odc-reports":/report \
             owasp/dependency-check:${{ inputs.dc-version }} \
             --scan /src \
