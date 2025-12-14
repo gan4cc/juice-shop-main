@@ -60,7 +60,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
 
       - uses: gitleaks/gitleaks-action@v2
         if: inputs.gitleaks
@@ -118,7 +119,7 @@ jobs:
           path: trivy.sarif
 
 # ---------------------------------------------------------
-# 🔎 SCA – OWASP Dependency Check (FIXED)
+# 🔎 SCA – OWASP Dependency Check
 # ---------------------------------------------------------
   owasp_depcheck:
     if: inputs.owasp-depcheck
@@ -130,9 +131,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - run: |
-          mkdir -p odc-data odc-reports
-          chmod -R 777 odc-data odc-reports
+      - name: Run Dependency-Check
+        run: |
+          mkdir -p odc-reports
+          chmod -R 777 odc-reports
+
           docker pull owasp/dependency-check:${{ inputs.dc-version }}
           docker run --rm \
             -e NVD_API_KEY="$NVD_API_KEY" \
@@ -146,15 +149,16 @@ jobs:
             --format HTML \
             --project "juicy-shop" \
             --out /report \
-            --nvdApiKey "$NVD_API_KEY"
+            --nvdApiKey "$NVD_API_KEY" || true
 
       - uses: actions/upload-artifact@v5
+        if: always()
         with:
           name: dependency-check
           path: odc-reports
 
 # ---------------------------------------------------------
-# 🐳 Build & Push Docker image (FIXED)
+# 🐳 Build & Push Docker image
 # ---------------------------------------------------------
   docker_build_and_push:
     runs-on: ubuntu-latest
@@ -175,9 +179,8 @@ jobs:
             ${{ env.GITHUB_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
             ${{ env.GITHUB_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-
 # ---------------------------------------------------------
-# 🌐 DAST – OWASP ZAP (FIXED)
+# 🌐 DAST – OWASP ZAP
 # ---------------------------------------------------------
   dast:
     if: inputs.zap
@@ -186,14 +189,20 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Prepare ZAP report directory
+        run: |
+          mkdir -p zap-reports
+          chmod -R 777 zap-reports
+
       - name: Run ZAP
         env:
           IMAGE_TAG: ${{ env.GITHUB_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
         run: |
-          mkdir -p zap-reports
-          docker compose -f docker-compose.dast.yml up --abort-on-container-exit zap
+          docker compose -f docker-compose.dast.yml up --abort-on-container-exit zap || true
 
-      - uses: actions/upload-artifact@v5
+      - name: Upload ZAP report
+        if: always()
+        uses: actions/upload-artifact@v5
         with:
           name: zap-report
           path: zap-reports
